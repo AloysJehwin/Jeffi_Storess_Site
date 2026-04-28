@@ -2,25 +2,15 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import AdminSelect from './AdminSelect'
 
-interface Category {
-  id: string
-  name: string
-  parent_category_id: string | null
-}
-
-interface CategoryFormProps {
-  categories: Category[]
+interface BrandFormProps {
   action: (formData: FormData) => Promise<void>
-  category?: any
+  brand?: any
 }
 
-export default function CategoryForm({ categories, action, category }: CategoryFormProps) {
+export default function BrandForm({ action, brand }: BrandFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const mainCategories = categories.filter(c => !c.parent_category_id)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -32,9 +22,13 @@ export default function CategoryForm({ categories, action, category }: CategoryF
       await action(formData)
     } catch (err: any) {
       if (err?.digest?.startsWith('NEXT_REDIRECT')) throw err
-      setError('Failed to save category. Please try again.')
+      setError('Failed to save brand. Please try again.')
       setIsSubmitting(false)
     }
+  }
+
+  function generateSlug(name: string) {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   }
 
   return (
@@ -47,100 +41,71 @@ export default function CategoryForm({ categories, action, category }: CategoryF
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          {/* Category Name */}
-          <div className="md:col-span-2">
+          <div>
             <label htmlFor="name" className="block text-sm font-medium text-foreground-secondary mb-2">
-              Category Name *
+              Brand Name *
             </label>
             <input
               type="text"
               id="name"
               name="name"
               required
-              defaultValue={category?.name}
+              defaultValue={brand?.name}
+              onChange={e => {
+                const slugInput = document.getElementById('slug') as HTMLInputElement
+                if (slugInput && !brand) {
+                  slugInput.value = generateSlug(e.target.value)
+                }
+              }}
               className="w-full px-4 py-2 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent"
-              placeholder="Enter category name"
+              placeholder="e.g. Stanley, DeWalt"
             />
           </div>
 
-          {/* Parent Category */}
-          <AdminSelect
-            id="parent_id"
-            name="parent_id"
-            label="Parent Category"
-            defaultValue={category?.parent_category_id || ''}
-            hint="Leave empty to create a main category"
-            placeholder="None (Main Category)"
-            options={[
-              { value: '', label: 'None (Main Category)' },
-              ...mainCategories.map(cat => ({
-                value: cat.id,
-                label: cat.name,
-              })),
-            ]}
-          />
-
-          {/* Display Order */}
           <div>
-            <label htmlFor="display_order" className="block text-sm font-medium text-foreground-secondary mb-2">
-              Display Order *
+            <label htmlFor="slug" className="block text-sm font-medium text-foreground-secondary mb-2">
+              Slug *
             </label>
             <input
-              type="number"
-              id="display_order"
-              name="display_order"
+              type="text"
+              id="slug"
+              name="slug"
               required
-              min="0"
-              defaultValue={category?.display_order || 0}
+              defaultValue={brand?.slug}
               className="w-full px-4 py-2 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent"
-              placeholder="0"
+              placeholder="e.g. stanley, dewalt"
             />
-            <p className="text-xs text-foreground-muted mt-1">
-              Lower numbers appear first
-            </p>
+            <p className="text-xs text-foreground-muted mt-1">URL-friendly identifier. Auto-filled from name.</p>
           </div>
 
-          {/* SKU Prefix */}
           <div>
-            <label htmlFor="sku_prefix" className="block text-sm font-medium text-foreground-secondary mb-2">
-              SKU Prefix
+            <label htmlFor="website" className="block text-sm font-medium text-foreground-secondary mb-2">
+              Website
             </label>
             <input
-              type="text"
-              id="sku_prefix"
-              name="sku_prefix"
-              maxLength={10}
-              defaultValue={category?.sku_prefix || ''}
-              className="w-full px-4 py-2 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent uppercase"
-              placeholder="e.g. BOLT, NUT, WSH"
-            />
-            <p className="text-xs text-foreground-muted mt-1">
-              Used for auto-generating product SKUs (e.g. BOLT-001). If empty, first 3 letters of name are used.
-            </p>
-          </div>
-
-          {/* Google Product Category */}
-          <div className="md:col-span-2">
-            <label htmlFor="google_product_category" className="block text-sm font-medium text-foreground-secondary mb-2">
-              Google Product Category
-            </label>
-            <input
-              type="text"
-              id="google_product_category"
-              name="google_product_category"
-              defaultValue={category?.google_product_category || ''}
+              type="url"
+              id="website"
+              name="website"
+              defaultValue={brand?.website || ''}
               className="w-full px-4 py-2 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent"
-              placeholder="e.g., Hardware > Fasteners > Bolts"
+              placeholder="https://example.com"
             />
-            <p className="text-xs text-foreground-muted mt-1">
-              Google taxonomy path or ID for Merchant Center. Find it at{' '}
-              <a href="https://www.google.com/basepages/producttype/taxonomy-with-ids.en-US.txt" target="_blank" rel="noopener noreferrer" className="text-accent-500 underline">
-                Google Product Taxonomy
-              </a>
-            </p>
           </div>
 
-          {/* Description */}
+          <div>
+            <label htmlFor="logo_url" className="block text-sm font-medium text-foreground-secondary mb-2">
+              Logo URL
+            </label>
+            <input
+              type="url"
+              id="logo_url"
+              name="logo_url"
+              defaultValue={brand?.logo_url || ''}
+              className="w-full px-4 py-2 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+              placeholder="https://example.com/logo.png"
+            />
+          </div>
+
           <div className="md:col-span-2">
             <label htmlFor="description" className="block text-sm font-medium text-foreground-secondary mb-2">
               Description
@@ -149,13 +114,12 @@ export default function CategoryForm({ categories, action, category }: CategoryF
               id="description"
               name="description"
               rows={3}
-              defaultValue={category?.description}
+              defaultValue={brand?.description || ''}
               className="w-full px-4 py-2 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent"
-              placeholder="Enter category description"
+              placeholder="Enter brand description"
             />
           </div>
 
-          {/* Active Checkbox */}
           <div className="md:col-span-2">
             <div className="flex items-center">
               <input
@@ -163,7 +127,7 @@ export default function CategoryForm({ categories, action, category }: CategoryF
                 id="is_active"
                 name="is_active"
                 value="true"
-                defaultChecked={category?.is_active ?? true}
+                defaultChecked={brand?.is_active ?? true}
                 className="h-4 w-4 text-accent-500 focus:ring-accent-500 border-border-secondary rounded"
               />
               <label htmlFor="is_active" className="ml-2 block text-sm text-foreground">
@@ -174,10 +138,9 @@ export default function CategoryForm({ categories, action, category }: CategoryF
         </div>
       </div>
 
-      {/* Form Actions */}
       <div className="px-4 sm:px-6 py-4 bg-surface-secondary border-t border-border-default flex justify-end gap-4">
         <Link
-          href="/admin/categories"
+          href="/admin/brands"
           className="px-6 py-2 border border-border-secondary rounded-lg text-foreground-secondary hover:bg-surface-secondary transition-colors"
         >
           Cancel
@@ -187,7 +150,7 @@ export default function CategoryForm({ categories, action, category }: CategoryF
           disabled={isSubmitting}
           className="px-6 py-2 bg-accent-500 hover:bg-accent-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isSubmitting ? 'Saving...' : category ? 'Update Category' : 'Create Category'}
+          {isSubmitting ? 'Saving...' : brand ? 'Update Brand' : 'Create Brand'}
         </button>
       </div>
     </form>
