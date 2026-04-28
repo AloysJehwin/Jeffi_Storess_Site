@@ -12,38 +12,26 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const categoryId = params.id
+    const brandId = params.id
 
     const productCount = await queryCount(
-      'SELECT COUNT(*) FROM products WHERE category_id = $1',
-      [categoryId]
+      'SELECT COUNT(*) FROM products WHERE brand_id = $1',
+      [brandId]
     )
 
     if (productCount > 0) {
       return NextResponse.json(
-        { error: `Cannot delete category. It has ${productCount} product(s) assigned to it.` },
+        { error: `Cannot delete brand. It has ${productCount} product(s) assigned to it.` },
         { status: 400 }
       )
     }
 
-    const subCategoryCount = await queryCount(
-      'SELECT COUNT(*) FROM categories WHERE parent_category_id = $1',
-      [categoryId]
-    )
-
-    if (subCategoryCount > 0) {
-      return NextResponse.json(
-        { error: `Cannot delete category. It has ${subCategoryCount} subcategory(ies).` },
-        { status: 400 }
-      )
-    }
-
-    await query('DELETE FROM categories WHERE id = $1', [categoryId])
+    await query('DELETE FROM brands WHERE id = $1', [brandId])
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || 'Failed to delete category' },
+      { error: error.message || 'Failed to delete brand' },
       { status: 500 }
     )
   }
