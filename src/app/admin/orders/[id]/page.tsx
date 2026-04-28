@@ -4,6 +4,7 @@ import { getOrder } from '@/lib/queries'
 import UpdateOrderStatus from '@/components/admin/UpdateOrderStatus'
 import CancelReview from '@/components/admin/CancelReview'
 import GenerateInvoiceButton from '@/components/admin/GenerateInvoiceButton'
+import InitiateRefundButton from '@/components/admin/InitiateRefundButton'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -159,6 +160,14 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
                 <p className="text-sm text-foreground bg-surface rounded-lg border border-border-default px-4 py-3">{order.cancellation_note}</p>
               </div>
             </div>
+          )}
+
+          {order.status === 'cancelled' && order.payment_status === 'paid' && (
+            <InitiateRefundButton
+              orderId={order.id}
+              orderNumber={order.order_number || order.id.slice(0, 8)}
+              amount={Number(order.total_amount)}
+            />
           )}
 
           {order.status !== 'cancelled' && (
