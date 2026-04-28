@@ -53,9 +53,11 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
                 ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
                 : order.status === 'cancel_requested'
                 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300'
+                : order.status === 'cancel_rejected'
+                ? 'bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300'
                 : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
             }`}>
-              Status: {order.status === 'cancel_requested' ? 'Cancellation Requested' : order.status}
+              Status: {order.status === 'cancel_requested' ? 'Cancellation Requested' : order.status === 'cancel_rejected' ? 'Cancellation Rejected' : order.status}
             </span>
             {order.invoice_number ? (
               <a
@@ -143,6 +145,18 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
               </div>
               <div className="p-4 sm:p-6">
                 <CancelReview orderId={order.id} />
+              </div>
+            </div>
+          )}
+
+          {order.status === 'cancel_rejected' && order.cancellation_note && (
+            <div className="bg-surface-elevated rounded-lg shadow-sm border-2 border-gray-200 dark:border-gray-700">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30">
+                <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Cancellation Rejected</h2>
+              </div>
+              <div className="p-4 sm:p-6">
+                <p className="text-sm text-foreground-secondary mb-1">Reason given to customer:</p>
+                <p className="text-sm text-foreground bg-surface rounded-lg border border-border-default px-4 py-3">{order.cancellation_note}</p>
               </div>
             </div>
           )}
