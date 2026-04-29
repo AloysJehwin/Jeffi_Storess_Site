@@ -138,7 +138,7 @@ export default function InflationClient({ categories }: { categories: Category[]
   const canApply = canPreview && !!preview && preview.length > 0
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-6xl">
+    <div className="p-4 sm:p-6 space-y-6">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-secondary-500 dark:text-foreground">Price Inflation</h1>
         <p className="text-foreground-secondary mt-1">Bulk-increase product prices by percentage, targeted by sub-category</p>
