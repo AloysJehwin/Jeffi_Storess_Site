@@ -25,6 +25,22 @@ interface PreviewProduct {
   variants: PreviewVariant[]
 }
 
+interface SnapshotVariant {
+  id: string
+  variant_name: string
+  before: Record<string, number | null>
+  after: Record<string, number | null>
+}
+
+interface SnapshotProduct {
+  id: string
+  name: string
+  has_variants: boolean
+  before: Record<string, number | null>
+  after: Record<string, number | null>
+  variants: SnapshotVariant[]
+}
+
 interface InflationLog {
   id: string
   category_name: string
@@ -33,6 +49,7 @@ interface InflationLog {
   product_count: number
   applied_by: string
   applied_at: string
+  snapshot: SnapshotProduct[] | null
 }
 
 const FIELD_LABELS: Record<string, string> = {
@@ -63,16 +80,18 @@ export default function InflationClient({ categories }: { categories: Category[]
   const [applySuccess, setApplySuccess] = useState<string | null>(null)
   const [logs, setLogs] = useState<InflationLog[]>([])
   const [logsLoading, setLogsLoading] = useState(true)
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null)
 
-  const subCategories = categories.filter(c => c.parent_category_id)
   const topCategories = categories.filter(c => !c.parent_category_id)
+  const subCategories = categories.filter(c => c.parent_category_id)
 
-  const categoryOptions: SelectOption[] = subCategories.length > 0
-    ? subCategories.map(c => {
-        const parent = topCategories.find(p => p.id === c.parent_category_id)
-        return { value: c.id, label: c.name, group: parent?.name, indent: true }
-      })
-    : categories.map(c => ({ value: c.id, label: c.name }))
+  const categoryOptions: SelectOption[] = topCategories.flatMap(parent => {
+    const subs = subCategories.filter(s => s.parent_category_id === parent.id)
+    return [
+      { value: parent.id, label: parent.name },
+      ...subs.map(s => ({ value: s.id, label: s.name, group: parent.name, indent: true })),
+    ]
+  })
 
   const fetchLogs = useCallback(() => {
     setLogsLoading(true)
@@ -150,19 +169,18 @@ export default function InflationClient({ categories }: { categories: Category[]
     <div className="p-4 sm:p-6 space-y-6">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-secondary-500 dark:text-foreground">Price Inflation</h1>
-        <p className="text-foreground-secondary mt-1">Bulk-increase product prices by percentage, targeted by sub-category</p>
+        <p className="text-foreground-secondary mt-1">Bulk-increase product prices by percentage — select a main category to target all products within it, or a sub-category to target that sub-category only</p>
       </div>
 
-      {/* Apply panel */}
       <div className="bg-surface-elevated rounded-lg shadow-sm border border-border-default p-4 sm:p-6 space-y-5">
         <h2 className="text-lg font-semibold text-foreground">Apply Inflation</h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-foreground-secondary mb-1.5">Sub-category *</label>
+            <label className="block text-sm font-medium text-foreground-secondary mb-1.5">Category *</label>
             <AdminSelect
               value={selectedCategory?.id || ''}
-              placeholder="Select a sub-category…"
+              placeholder="Select a category…"
               options={categoryOptions}
               onChange={val => {
                 const cat = categories.find(c => c.id === val) || null
@@ -233,7 +251,6 @@ export default function InflationClient({ categories }: { categories: Category[]
         {applySuccess && <p className="text-sm text-green-600 dark:text-green-400 font-medium">{applySuccess}</p>}
       </div>
 
-      {/* Preview table */}
       {preview && preview.length > 0 && (
         <div className="bg-surface-elevated rounded-lg shadow-sm border border-border-default overflow-hidden">
           <div className="px-4 sm:px-6 py-4 border-b border-border-default flex items-center justify-between">
@@ -289,11 +306,10 @@ export default function InflationClient({ categories }: { categories: Category[]
 
       {preview && preview.length === 0 && (
         <p className="text-sm text-foreground-muted bg-surface-elevated border border-border-default rounded-lg px-4 py-3">
-          No active products found in this sub-category.
+          No active products found in this category.
         </p>
       )}
 
-      {/* History */}
       <div className="bg-surface-elevated rounded-lg shadow-sm border border-border-default overflow-hidden">
         <div className="px-4 sm:px-6 py-4 border-b border-border-default">
           <h2 className="text-base font-semibold text-foreground">Inflation History</h2>
@@ -317,17 +333,82 @@ export default function InflationClient({ categories }: { categories: Category[]
               </thead>
               <tbody className="divide-y divide-border-default">
                 {logs.map(log => (
-                  <tr key={log.id} className="hover:bg-surface transition-colors">
-                    <td className="py-2.5 px-4 font-medium text-foreground">{log.category_name}</td>
-                    <td className="py-2.5 px-3 text-right text-accent-600 dark:text-accent-400 font-semibold">+{log.percentage}%</td>
-                    <td className="py-2.5 px-3 text-foreground-secondary text-xs">{log.applied_fields.map(f => FIELD_LABELS[f] || f).join(', ')}</td>
-                    <td className="py-2.5 px-3 text-right text-foreground">{log.product_count}</td>
-                    <td className="py-2.5 px-3 text-foreground-secondary">{log.applied_by}</td>
-                    <td className="py-2.5 px-3 text-foreground-muted text-xs whitespace-nowrap">
-                      {new Date(log.applied_at).toLocaleDateString('en-IN')}{' '}
-                      {new Date(log.applied_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                  </tr>
+                  <>
+                    <tr
+                      key={log.id}
+                      onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
+                      className={`transition-colors cursor-pointer ${log.snapshot ? 'hover:bg-surface' : ''} ${expandedLogId === log.id ? 'bg-surface' : ''}`}
+                    >
+                      <td className="py-2.5 px-4 font-medium text-foreground">
+                        <span className="flex items-center gap-1.5">
+                          {log.snapshot && (
+                            <svg className={`w-3.5 h-3.5 text-foreground-muted shrink-0 transition-transform ${expandedLogId === log.id ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                          )}
+                          {log.category_name}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-accent-600 dark:text-accent-400 font-semibold">+{log.percentage}%</td>
+                      <td className="py-2.5 px-3 text-foreground-secondary text-xs">{log.applied_fields.map(f => FIELD_LABELS[f] || f).join(', ')}</td>
+                      <td className="py-2.5 px-3 text-right text-foreground">{log.product_count}</td>
+                      <td className="py-2.5 px-3 text-foreground-secondary">{log.applied_by}</td>
+                      <td className="py-2.5 px-3 text-foreground-muted text-xs whitespace-nowrap">
+                        {new Date(log.applied_at).toLocaleDateString('en-IN')}{' '}
+                        {new Date(log.applied_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                    </tr>
+                    {expandedLogId === log.id && log.snapshot && (
+                      <tr key={`${log.id}-detail`}>
+                        <td colSpan={6} className="p-0 bg-surface border-b border-border-default">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                              <thead className="bg-surface-secondary border-b border-border-default">
+                                <tr>
+                                  <th className="text-left py-2 px-6 font-medium text-foreground-secondary">Product / Variant</th>
+                                  {log.applied_fields.map(f => (
+                                    <th key={f} className="text-right py-2 px-3 font-medium text-foreground-secondary whitespace-nowrap">{FIELD_LABELS[f] || f}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border-default">
+                                {log.snapshot.map(p => (
+                                  <>
+                                    <tr key={p.id} className="bg-surface">
+                                      <td className="py-2 px-6 font-medium text-foreground">{p.name}</td>
+                                      {log.applied_fields.map(f => (
+                                        <td key={f} className="py-2 px-3 text-right">
+                                          {p.has_variants && p.variants.length > 0 ? (
+                                            <span className="text-foreground-muted">see variants</span>
+                                          ) : (
+                                            <>
+                                              <span className="text-foreground-muted line-through mr-1.5">{fmt(p.before[f])}</span>
+                                              <span className="text-green-600 dark:text-green-400 font-medium">{fmt(p.after[f])}</span>
+                                            </>
+                                          )}
+                                        </td>
+                                      ))}
+                                    </tr>
+                                    {p.has_variants && p.variants.map(v => (
+                                      <tr key={v.id} className="bg-surface-secondary/50">
+                                        <td className="py-1.5 px-6 pl-10 text-foreground-secondary">{v.variant_name}</td>
+                                        {log.applied_fields.map(f => (
+                                          <td key={f} className="py-1.5 px-3 text-right">
+                                            <span className="text-foreground-muted line-through mr-1.5">{fmt(v.before[f])}</span>
+                                            <span className="text-green-600 dark:text-green-400 font-medium">{fmt(v.after[f])}</span>
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 ))}
               </tbody>
             </table>

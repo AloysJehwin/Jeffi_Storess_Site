@@ -3,6 +3,7 @@ import { queryMany, withTransaction } from '@/lib/db'
 import { authenticateAdmin } from '@/lib/jwt'
 
 const VALID_FIELDS = ['base_price', 'mrp', 'sale_price', 'wholesale_price', 'weight_rate', 'length_rate']
+const VARIANT_FIELD_MAP: Record<string, string> = { base_price: 'price', mrp: 'mrp', sale_price: 'sale_price', wholesale_price: 'wholesale_price', weight_rate: 'weight_rate', length_rate: 'length_rate' }
 
 function applyPct(val: number | null, pct: number): number | null {
   if (val == null) return null
@@ -36,7 +37,11 @@ export async function GET(request: NextRequest) {
         '[]'::json
       ) AS variants
     FROM products p
-    WHERE p.category_id = $1 AND p.is_active = true
+    WHERE p.category_id = ANY(
+      SELECT id FROM categories WHERE id = $1
+      UNION
+      SELECT id FROM categories WHERE parent_category_id = $1
+    ) AND p.is_active = true
     ORDER BY p.name
   `, [categoryId])
 
@@ -78,8 +83,14 @@ export async function POST(request: NextRequest) {
   if (validFields.length === 0) return NextResponse.json({ error: 'at least one valid field required' }, { status: 400 })
 
   const products = await queryMany(
-    `SELECT p.id, p.has_variants, p.base_price, p.mrp, p.sale_price, p.wholesale_price, p.weight_rate, p.length_rate
-     FROM products p WHERE p.category_id = $1 AND p.is_active = true`,
+    `SELECT p.id, p.name, p.has_variants, p.base_price, p.mrp, p.sale_price, p.wholesale_price, p.weight_rate, p.length_rate
+     FROM products p
+     WHERE p.category_id = ANY(
+       SELECT id FROM categories WHERE id = $1
+       UNION
+       SELECT id FROM categories WHERE parent_category_id = $1
+     ) AND p.is_active = true
+     ORDER BY p.name`,
     [category_id]
   )
 
@@ -89,74 +100,82 @@ export async function POST(request: NextRequest) {
 
   const productIds = products.map((p: any) => p.id)
 
-  await withTransaction(async (client) => {
-    for (const p of products) {
-      const setClauses: string[] = []
-      const values: any[] = []
-      let i = 1
+  try {
+    await withTransaction(async (client) => {
+      const snapshotProducts: any[] = []
+      for (const p of products) {
+        const before: Record<string, number | null> = {}
+        const after: Record<string, number | null> = {}
+        const setClauses: string[] = []
+        const values: any[] = []
+        let i = 1
 
-      for (const f of validFields) {
-        if (f === 'base_price' || f === 'mrp' || f === 'sale_price' || f === 'wholesale_price') {
+        for (const f of validFields) {
           const raw = parseFloat(p[f])
+          before[f] = isNaN(raw) ? null : raw
           if (!isNaN(raw) && raw > 0) {
+            after[f] = applyPct(raw, percentage)
             setClauses.push(`${f} = $${i++}`)
-            values.push(applyPct(raw, percentage))
+            values.push(after[f])
+          } else {
+            after[f] = null
           }
         }
-        if (f === 'weight_rate' && p.weight_rate != null) {
-          const raw = parseFloat(p.weight_rate)
+
+        snapshotProducts.push({ id: p.id, name: p.name, has_variants: p.has_variants, before, after, variants: [] })
+
+        if (setClauses.length > 0) {
+          values.push(p.id)
+          await client.query(`UPDATE products SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${i}`, values)
+        }
+      }
+
+      const variants = await client.query(
+        `SELECT id, product_id, variant_name, price, mrp, sale_price, wholesale_price, weight_rate, length_rate
+         FROM product_variants WHERE product_id = ANY($1) AND is_active = true`,
+        [productIds]
+      )
+
+      for (const v of variants.rows) {
+        const setClauses: string[] = []
+        const values: any[] = []
+        let i = 1
+        const before: Record<string, number | null> = {}
+        const after: Record<string, number | null> = {}
+
+        for (const f of validFields) {
+          const col = VARIANT_FIELD_MAP[f]
+          const raw = parseFloat(v[col])
+          before[f] = isNaN(raw) ? null : raw
           if (!isNaN(raw) && raw > 0) {
-            setClauses.push(`weight_rate = $${i++}`)
-            values.push(applyPct(raw, percentage))
+            after[f] = applyPct(raw, percentage)
+            setClauses.push(`${col} = $${i++}`)
+            values.push(after[f])
+          } else {
+            after[f] = null
           }
         }
-        if (f === 'length_rate' && p.length_rate != null) {
-          const raw = parseFloat(p.length_rate)
-          if (!isNaN(raw) && raw > 0) {
-            setClauses.push(`length_rate = $${i++}`)
-            values.push(applyPct(raw, percentage))
-          }
+
+        const productRow = snapshotProducts.find((p: any) => p.id === v.product_id)
+        if (productRow) {
+          productRow.variants.push({ id: v.id, variant_name: v.variant_name, before, after })
+        }
+
+        if (setClauses.length > 0) {
+          values.push(v.id)
+          await client.query(`UPDATE product_variants SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${i}`, values)
         }
       }
 
-      if (setClauses.length > 0) {
-        values.push(p.id)
-        await client.query(`UPDATE products SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${i}`, values)
-      }
-    }
-
-    const variantFieldMap: Record<string, string> = { base_price: 'price', mrp: 'mrp', sale_price: 'sale_price', wholesale_price: 'wholesale_price', weight_rate: 'weight_rate', length_rate: 'length_rate' }
-    const variants = await client.query(
-      `SELECT id, price, mrp, sale_price, wholesale_price, weight_rate, length_rate FROM product_variants WHERE product_id = ANY($1) AND is_active = true`,
-      [productIds]
-    )
-
-    for (const v of variants.rows) {
-      const setClauses: string[] = []
-      const values: any[] = []
-      let i = 1
-
-      for (const f of validFields) {
-        const col = variantFieldMap[f]
-        const raw = parseFloat(v[col])
-        if (!isNaN(raw) && raw > 0) {
-          setClauses.push(`${col} = $${i++}`)
-          values.push(applyPct(raw, percentage))
-        }
-      }
-
-      if (setClauses.length > 0) {
-        values.push(v.id)
-        await client.query(`UPDATE product_variants SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${i}`, values)
-      }
-    }
-
-    await client.query(
-      `INSERT INTO price_inflation_log (category_id, category_name, percentage, applied_fields, product_count, applied_by)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [category_id, category_name, percentage, validFields, products.length, admin.username || 'admin']
-    )
-  })
+      await client.query(
+        `INSERT INTO price_inflation_log (category_id, category_name, percentage, applied_fields, product_count, applied_by, snapshot)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [category_id, category_name, percentage, validFields, products.length, admin.username || 'admin', JSON.stringify(snapshotProducts)]
+      )
+    })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message || 'Failed to apply inflation' }, { status: 500 })
+  }
 
   return NextResponse.json({ success: true, product_count: products.length })
 }
