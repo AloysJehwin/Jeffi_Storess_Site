@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import AdminSelect, { SelectOption } from '@/components/admin/AdminSelect'
 
 interface Category {
   id: string
@@ -64,6 +65,14 @@ export default function InflationClient({ categories }: { categories: Category[]
   const [logsLoading, setLogsLoading] = useState(true)
 
   const subCategories = categories.filter(c => c.parent_category_id)
+  const topCategories = categories.filter(c => !c.parent_category_id)
+
+  const categoryOptions: SelectOption[] = subCategories.length > 0
+    ? subCategories.map(c => {
+        const parent = topCategories.find(p => p.id === c.parent_category_id)
+        return { value: c.id, label: c.name, group: parent?.name, indent: true }
+      })
+    : categories.map(c => ({ value: c.id, label: c.name }))
 
   const fetchLogs = useCallback(() => {
     setLogsLoading(true)
@@ -151,20 +160,16 @@ export default function InflationClient({ categories }: { categories: Category[]
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-foreground-secondary mb-1.5">Sub-category *</label>
-            <select
+            <AdminSelect
               value={selectedCategory?.id || ''}
-              onChange={e => {
-                const cat = subCategories.find(c => c.id === e.target.value) || null
+              placeholder="Select a sub-category…"
+              options={categoryOptions}
+              onChange={val => {
+                const cat = categories.find(c => c.id === val) || null
                 setSelectedCategory(cat)
                 setPreview(null)
               }}
-              className="w-full px-3 py-2 border border-border-secondary rounded-lg bg-surface text-foreground focus:ring-2 focus:ring-accent-500 focus:border-transparent text-sm"
-            >
-              <option value="">Select a sub-category…</option>
-              {subCategories.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            />
           </div>
 
           <div>
