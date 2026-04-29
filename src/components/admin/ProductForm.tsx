@@ -217,6 +217,18 @@ export default function ProductForm({ categories, brands, action, product, produ
     setVariants(updated)
   }
 
+  function toggleVariantRate(index: number, rateType: 'weight' | 'length') {
+    const updated = [...variants]
+    const row = { ...updated[index] }
+    const onField = rateType === 'weight' ? 'weight_rate_on' : 'length_rate_on'
+    const rateField = rateType === 'weight' ? 'weight_rate' : 'length_rate'
+    const turningOff = row[onField]
+    row[onField] = !turningOff
+    if (turningOff) row[rateField] = ''
+    updated[index] = row
+    setVariants(updated)
+  }
+
   const activeVariants = variants.filter(v => !v._isDeleted)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -856,7 +868,7 @@ export default function ProductForm({ categories, brands, action, product, produ
                                 <div className="flex items-center gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => { updateVariant(index, 'weight_rate_on', !variant.weight_rate_on); if (variant.weight_rate_on) updateVariant(index, 'weight_rate', '') }}
+                                    onClick={() => toggleVariantRate(index, 'weight')}
                                     className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${variant.weight_rate_on ? 'bg-accent-500' : 'bg-border-secondary'}`}
                                     role="switch"
                                     aria-checked={variant.weight_rate_on}
@@ -877,7 +889,7 @@ export default function ProductForm({ categories, brands, action, product, produ
                                 <div className="flex items-center gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => { updateVariant(index, 'length_rate_on', !variant.length_rate_on); if (variant.length_rate_on) updateVariant(index, 'length_rate', '') }}
+                                    onClick={() => toggleVariantRate(index, 'length')}
                                     className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${variant.length_rate_on ? 'bg-accent-500' : 'bg-border-secondary'}`}
                                     role="switch"
                                     aria-checked={variant.length_rate_on}
@@ -1019,7 +1031,7 @@ export default function ProductForm({ categories, brands, action, product, produ
                                       <div className="flex items-center gap-1.5">
                                         <button
                                           type="button"
-                                          onClick={() => { updateVariant(index, 'weight_rate_on', !variant.weight_rate_on); if (variant.weight_rate_on) updateVariant(index, 'weight_rate', '') }}
+                                          onClick={() => toggleVariantRate(index, 'weight')}
                                           className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${variant.weight_rate_on ? 'bg-accent-500' : 'bg-border-secondary'}`}
                                           role="switch"
                                           aria-checked={variant.weight_rate_on}
@@ -1046,7 +1058,7 @@ export default function ProductForm({ categories, brands, action, product, produ
                                       <div className="flex items-center gap-1.5">
                                         <button
                                           type="button"
-                                          onClick={() => { updateVariant(index, 'length_rate_on', !variant.length_rate_on); if (variant.length_rate_on) updateVariant(index, 'length_rate', '') }}
+                                          onClick={() => toggleVariantRate(index, 'length')}
                                           className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${variant.length_rate_on ? 'bg-accent-500' : 'bg-border-secondary'}`}
                                           role="switch"
                                           aria-checked={variant.length_rate_on}
