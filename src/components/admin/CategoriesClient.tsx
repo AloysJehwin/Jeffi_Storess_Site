@@ -254,15 +254,13 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
     const overCat = categories.find(c => c.id === overId)!
 
     const isMainDragged = !activeCat.parent_category_id
+    const overIsSubcat = !!overCat.parent_category_id
     const overIsMain = !overCat.parent_category_id
     const sameParent = activeCat.parent_category_id === overCat.parent_category_id
 
-    if (isMainDragged && !overIsMain) return
-    if (!isMainDragged && (!sameParent)) return
-
     const updated = [...categories]
 
-    if (isMainDragged) {
+    if (isMainDragged && overIsMain) {
       const mains = updated.filter(c => !c.parent_category_id).sort((a, b) => a.display_order - b.display_order)
       const fromIdx = mains.findIndex(c => c.id === activeId)
       const toIdx = mains.findIndex(c => c.id === overId)
@@ -271,7 +269,12 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
         const idx = updated.findIndex(u => u.id === c.id)
         updated[idx] = { ...updated[idx], display_order: i + 1 }
       })
-    } else {
+      setCategories(updated)
+      saveReorder(updated)
+      return
+    }
+
+    if (!isMainDragged && overIsSubcat && sameParent) {
       const siblings = updated.filter(c => c.parent_category_id === activeCat.parent_category_id).sort((a, b) => a.display_order - b.display_order)
       const fromIdx = siblings.findIndex(c => c.id === activeId)
       const toIdx = siblings.findIndex(c => c.id === overId)
@@ -280,10 +283,10 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
         const idx = updated.findIndex(u => u.id === c.id)
         updated[idx] = { ...updated[idx], display_order: i + 1 }
       })
+      setCategories(updated)
+      saveReorder(updated)
+      return
     }
-
-    setCategories(updated)
-    saveReorder(updated)
   }
 
   const activeCategory = categories.find(c => c.id === activeId)
@@ -308,7 +311,6 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
       >
         <SortableContext items={flatOrder.map(c => c.id)} strategy={verticalListSortingStrategy}>
 
-          {/* Desktop table */}
           <div className="hidden md:block bg-surface-elevated rounded-lg shadow-sm border border-border-default overflow-hidden">
             <table className="min-w-full divide-y divide-border-default">
               <thead className="bg-surface-secondary">
@@ -354,7 +356,6 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
             </table>
           </div>
 
-          {/* Mobile cards */}
           <div className="md:hidden space-y-2">
             {mainCategories.length > 0 ? mainCategories.map(cat => {
               const subcats = getSubcats(cat.id)
