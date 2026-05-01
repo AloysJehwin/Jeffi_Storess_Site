@@ -8,11 +8,11 @@ import {
   DragOverlay,
   closestCenter,
   PointerSensor,
-  TouchSensor,
   useSensor,
   useSensors,
   DragStartEvent,
   DragEndEvent,
+  DragOverEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -33,33 +33,20 @@ interface Category {
   parent_category_id: string | null
 }
 
-function DragHandle({ attributes, listeners }: { attributes: any; listeners: any }) {
-  return (
-    <button
-      {...attributes}
-      {...listeners}
-      className="cursor-grab active:cursor-grabbing text-foreground-muted hover:text-foreground p-1 rounded touch-none"
-      title="Drag to reorder"
-    >
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-      </svg>
-    </button>
-  )
-}
-
 function SortableRow({
   category,
   isSubcat,
   collapsed,
   onToggleCollapse,
   subCount,
+  isDraggingOver,
 }: {
   category: Category
   isSubcat: boolean
   collapsed?: boolean
   onToggleCollapse?: () => void
   subCount?: number
+  isDraggingOver?: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: category.id,
@@ -75,11 +62,22 @@ function SortableRow({
     <tr
       ref={setNodeRef}
       style={style}
-      className={`${isSubcat ? 'bg-surface' : 'bg-surface-elevated'} hover:bg-surface-secondary`}
+      className={`${isSubcat ? 'bg-surface' : 'bg-surface-elevated'} ${
+        isDraggingOver ? 'outline outline-2 outline-accent-400' : ''
+      } hover:bg-surface-secondary`}
     >
       <td className="px-4 py-3 whitespace-nowrap">
         <div className={`flex items-center gap-2 ${isSubcat ? 'ml-8' : ''}`}>
-          <DragHandle attributes={attributes} listeners={listeners} />
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing text-foreground-muted hover:text-foreground p-1 rounded touch-none"
+            title="Drag to reorder"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+            </svg>
+          </button>
           {!isSubcat && (
             <button
               onClick={onToggleCollapse}
@@ -131,80 +129,15 @@ function SortableRow({
   )
 }
 
-function SortableMobileCard({
-  category,
-  isSubcat,
-  collapsed,
-  onToggleCollapse,
-  subCount,
-}: {
-  category: Category
-  isSubcat: boolean
-  collapsed?: boolean
-  onToggleCollapse?: () => void
-  subCount?: number
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: category.id,
-  })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-  }
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`bg-surface-elevated rounded-lg shadow-sm border border-border-default p-4 ${isSubcat ? 'ml-6' : ''}`}
-    >
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <DragHandle attributes={attributes} listeners={listeners} />
-          {!isSubcat && subCount !== undefined && subCount > 0 && (
-            <button onClick={onToggleCollapse} className="text-foreground-muted">
-              <svg className={`w-4 h-4 transition-transform ${collapsed ? '' : 'rotate-90'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          )}
-          <div className="text-sm font-semibold text-foreground">
-            {isSubcat && <span className="text-foreground-muted mr-1">└</span>}
-            {category.name}
-          </div>
-          {!isSubcat && subCount !== undefined && subCount > 0 && (
-            <span className="text-xs text-foreground-muted bg-surface-secondary px-1.5 py-0.5 rounded-full">{subCount}</span>
-          )}
-        </div>
-        <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${category.is_active ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' : 'bg-surface-secondary text-foreground'}`}>
-          {category.is_active ? 'Active' : 'Inactive'}
-        </span>
-      </div>
-      <div className="flex items-center justify-between text-xs text-foreground-muted mb-3">
-        <span>{category.slug}</span>
-        <span>Order: {category.display_order}</span>
-      </div>
-      <div className="flex items-center justify-end gap-3 text-sm">
-        <Link href={`/admin/categories/edit/${category.id}`} className="text-accent-500 font-medium">Edit</Link>
-        <DeleteCategoryButton categoryId={category.id} categoryName={category.name} />
-      </div>
-    </div>
-  )
-}
-
 export default function CategoriesClient({ initialCategories }: { initialCategories: Category[] }) {
   const [categories, setCategories] = useState<Category[]>(initialCategories)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [dragOverParent, setDragOverParent] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const router = useRouter()
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
-  )
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const mainCategories = categories.filter(c => !c.parent_category_id).sort((a, b) => a.display_order - b.display_order)
   const getSubcats = useCallback(
@@ -241,11 +174,28 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
 
   const handleDragStart = (e: DragStartEvent) => {
     setActiveId(e.active.id as string)
+    setDragOverParent(null)
+  }
+
+  const handleDragOver = (e: DragOverEvent) => {
+    const overId = e.over?.id as string | undefined
+    if (!overId || !activeId) return
+    const overCat = categories.find(c => c.id === overId)
+    if (!overCat) return
+    const activeCat = categories.find(c => c.id === activeId)
+    if (!activeCat) return
+
+    if (!activeCat.parent_category_id && overCat.parent_category_id) {
+      setDragOverParent(overCat.parent_category_id)
+    } else {
+      setDragOverParent(null)
+    }
   }
 
   const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e
     setActiveId(null)
+    setDragOverParent(null)
     if (!over || active.id === over.id) return
 
     const activeId = active.id as string
@@ -253,14 +203,34 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
     const activeCat = categories.find(c => c.id === activeId)!
     const overCat = categories.find(c => c.id === overId)!
 
+    let updated = [...categories]
+
     const isMainDragged = !activeCat.parent_category_id
     const overIsSubcat = !!overCat.parent_category_id
     const overIsMain = !overCat.parent_category_id
-    const sameParent = activeCat.parent_category_id === overCat.parent_category_id
 
-    const updated = [...categories]
-
-    if (isMainDragged && overIsMain) {
+    if (isMainDragged && overIsSubcat) {
+      const newParent = overCat.parent_category_id!
+      const siblings = updated
+        .filter(c => c.parent_category_id === newParent)
+        .sort((a, b) => a.display_order - b.display_order)
+      const overIdx = siblings.findIndex(c => c.id === overId)
+      updated = updated.map(c => {
+        if (c.id === activeId) return { ...c, parent_category_id: newParent, display_order: overIdx + 1 }
+        return c
+      })
+      const newSiblings = updated
+        .filter(c => c.parent_category_id === newParent)
+        .sort((a, b) => (a.id === activeId ? overIdx : a.display_order) - (b.id === activeId ? overIdx : b.display_order))
+      newSiblings.forEach((c, i) => {
+        const idx = updated.findIndex(u => u.id === c.id)
+        updated[idx] = { ...updated[idx], display_order: i + 1 }
+      })
+    } else if (!isMainDragged && overIsMain) {
+      updated = updated.map(c => {
+        if (c.id === activeId) return { ...c, parent_category_id: null }
+        return c
+      })
       const mains = updated.filter(c => !c.parent_category_id).sort((a, b) => a.display_order - b.display_order)
       const fromIdx = mains.findIndex(c => c.id === activeId)
       const toIdx = mains.findIndex(c => c.id === overId)
@@ -269,24 +239,45 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
         const idx = updated.findIndex(u => u.id === c.id)
         updated[idx] = { ...updated[idx], display_order: i + 1 }
       })
-      setCategories(updated)
-      saveReorder(updated)
-      return
-    }
-
-    if (!isMainDragged && overIsSubcat && sameParent) {
-      const siblings = updated.filter(c => c.parent_category_id === activeCat.parent_category_id).sort((a, b) => a.display_order - b.display_order)
-      const fromIdx = siblings.findIndex(c => c.id === activeId)
-      const toIdx = siblings.findIndex(c => c.id === overId)
-      const reordered = arrayMove(siblings, fromIdx, toIdx)
+    } else if (isMainDragged && overIsMain) {
+      const mains = updated.filter(c => !c.parent_category_id).sort((a, b) => a.display_order - b.display_order)
+      const fromIdx = mains.findIndex(c => c.id === activeId)
+      const toIdx = mains.findIndex(c => c.id === overId)
+      const reordered = arrayMove(mains, fromIdx, toIdx)
       reordered.forEach((c, i) => {
         const idx = updated.findIndex(u => u.id === c.id)
         updated[idx] = { ...updated[idx], display_order: i + 1 }
       })
-      setCategories(updated)
-      saveReorder(updated)
-      return
+    } else if (!isMainDragged && overIsSubcat) {
+      const sameParent = activeCat.parent_category_id === overCat.parent_category_id
+      if (sameParent) {
+        const siblings = updated.filter(c => c.parent_category_id === activeCat.parent_category_id).sort((a, b) => a.display_order - b.display_order)
+        const fromIdx = siblings.findIndex(c => c.id === activeId)
+        const toIdx = siblings.findIndex(c => c.id === overId)
+        const reordered = arrayMove(siblings, fromIdx, toIdx)
+        reordered.forEach((c, i) => {
+          const idx = updated.findIndex(u => u.id === c.id)
+          updated[idx] = { ...updated[idx], display_order: i + 1 }
+        })
+      } else {
+        const newParent = overCat.parent_category_id!
+        const newSiblings = updated.filter(c => c.parent_category_id === newParent && c.id !== activeId).sort((a, b) => a.display_order - b.display_order)
+        const overIdx = newSiblings.findIndex(c => c.id === overId)
+        newSiblings.splice(overIdx + 1, 0, { ...activeCat, parent_category_id: newParent })
+        newSiblings.forEach((c, i) => {
+          const idx = updated.findIndex(u => u.id === c.id)
+          updated[idx] = { ...updated[idx], parent_category_id: newParent, display_order: i + 1 }
+        })
+        const oldSiblings = updated.filter(c => c.parent_category_id === activeCat.parent_category_id && c.id !== activeId).sort((a, b) => a.display_order - b.display_order)
+        oldSiblings.forEach((c, i) => {
+          const idx = updated.findIndex(u => u.id === c.id)
+          updated[idx] = { ...updated[idx], display_order: i + 1 }
+        })
+      }
     }
+
+    setCategories(updated)
+    saveReorder(updated)
   }
 
   const activeCategory = categories.find(c => c.id === activeId)
@@ -307,10 +298,10 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={flatOrder.map(c => c.id)} strategy={verticalListSortingStrategy}>
-
           <div className="hidden md:block bg-surface-elevated rounded-lg shadow-sm border border-border-default overflow-hidden">
             <table className="min-w-full divide-y divide-border-default">
               <thead className="bg-surface-secondary">
@@ -335,6 +326,7 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
                         collapsed={isCollapsed}
                         onToggleCollapse={() => toggleCollapse(cat.id)}
                         subCount={subcats.length}
+                        isDraggingOver={dragOverParent === cat.id}
                       />
                       {!isCollapsed && subcats.map(sub => (
                         <SortableRow
@@ -355,34 +347,6 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
               </tbody>
             </table>
           </div>
-
-          <div className="md:hidden space-y-2">
-            {mainCategories.length > 0 ? mainCategories.map(cat => {
-              const subcats = getSubcats(cat.id)
-              const isCollapsed = collapsed.has(cat.id)
-              return (
-                <div key={cat.id}>
-                  <SortableMobileCard
-                    category={cat}
-                    isSubcat={false}
-                    collapsed={isCollapsed}
-                    onToggleCollapse={() => toggleCollapse(cat.id)}
-                    subCount={subcats.length}
-                  />
-                  {!isCollapsed && subcats.map(sub => (
-                    <div key={sub.id} className="mt-2">
-                      <SortableMobileCard category={sub} isSubcat={true} />
-                    </div>
-                  ))}
-                </div>
-              )
-            }) : (
-              <div className="bg-surface-elevated rounded-lg border border-border-default p-8 text-center text-foreground-muted">
-                No categories found.
-              </div>
-            )}
-          </div>
-
         </SortableContext>
 
         <DragOverlay>
@@ -393,6 +357,66 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
           )}
         </DragOverlay>
       </DndContext>
+
+      <div className="md:hidden space-y-3">
+        {mainCategories.map(cat => {
+          const subcats = getSubcats(cat.id)
+          const isCollapsed = collapsed.has(cat.id)
+          return (
+            <div key={cat.id}>
+              <div className="bg-surface-elevated rounded-lg shadow-sm border border-border-default p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    {subcats.length > 0 && (
+                      <button onClick={() => toggleCollapse(cat.id)} className="text-foreground-muted">
+                        <svg className={`w-4 h-4 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    )}
+                    <div className="text-sm font-semibold text-foreground">{cat.name}</div>
+                    {subcats.length > 0 && (
+                      <span className="text-xs text-foreground-muted bg-surface-secondary px-1.5 py-0.5 rounded-full">{subcats.length}</span>
+                    )}
+                  </div>
+                  <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${cat.is_active ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' : 'bg-surface-secondary text-foreground'}`}>
+                    {cat.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs text-foreground-muted mb-3">
+                  <span>{cat.slug}</span>
+                  <span>Order: {cat.display_order}</span>
+                </div>
+                <div className="flex items-center justify-end gap-3 text-sm">
+                  <Link href={`/admin/categories/edit/${cat.id}`} className="text-accent-500 font-medium">Edit</Link>
+                  <DeleteCategoryButton categoryId={cat.id} categoryName={cat.name} />
+                </div>
+              </div>
+
+              {!isCollapsed && subcats.map(sub => (
+                <div key={sub.id} className="bg-surface-elevated rounded-lg shadow-sm border border-border-default p-4 ml-6 mt-2">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="text-sm text-foreground">
+                      <span className="text-foreground-muted mr-1">└</span>{sub.name}
+                    </div>
+                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${sub.is_active ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' : 'bg-surface-secondary text-foreground'}`}>
+                      {sub.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-foreground-muted mb-3">
+                    <span>{sub.slug}</span>
+                    <span>Order: {sub.display_order}</span>
+                  </div>
+                  <div className="flex items-center justify-end gap-3 text-sm">
+                    <Link href={`/admin/categories/edit/${sub.id}`} className="text-accent-500 font-medium">Edit</Link>
+                    <DeleteCategoryButton categoryId={sub.id} categoryName={sub.name} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
