@@ -827,22 +827,22 @@ export default function ProductForm({ categories, brands, action, product, produ
             <label className="block text-sm font-medium text-foreground-secondary mb-2">
               Package Type
             </label>
-            <select
-              name="package_type"
+            <input type="hidden" name="package_type" value={productPackageType} />
+            <AdminSelect
               value={productPackageType}
-              onChange={e => setProductPackageType(e.target.value)}
-              className="w-full px-4 py-2 border border-border-secondary rounded-lg bg-surface text-foreground focus:ring-2 focus:ring-accent-500 focus:border-transparent"
-            >
-              <option value="flat_poly_auto">Flat Poly (auto by weight)</option>
-              <option value="flat_poly_s">Flat Poly S (≤100g)</option>
-              <option value="flat_poly_m">Flat Poly M (≤500g)</option>
-              <option value="flat_poly_l">Flat Poly L (≤1500g)</option>
-              <option value="flat_poly_xl">Flat Poly XL (&gt;1500g)</option>
-              <option value="drill_bit_tube">Drill Bit Tube</option>
-              <option value="drill_bit_set_case">Drill Bit Set Case</option>
-              <option value="corrugated_box">Corrugated Box</option>
-              <option value="long_tube">Long Tube / Rod / Pipe</option>
-            </select>
+              onChange={setProductPackageType}
+              options={[
+                { value: 'flat_poly_auto', label: 'Flat Poly (auto by weight)' },
+                { value: 'flat_poly_s',    label: 'Flat Poly S (≤100g)' },
+                { value: 'flat_poly_m',    label: 'Flat Poly M (≤500g)' },
+                { value: 'flat_poly_l',    label: 'Flat Poly L (≤1500g)' },
+                { value: 'flat_poly_xl',   label: 'Flat Poly XL (>1500g)' },
+                { value: 'drill_bit_tube',     label: 'Drill Bit Tube' },
+                { value: 'drill_bit_set_case', label: 'Drill Bit Set Case' },
+                { value: 'corrugated_box',     label: 'Corrugated Box' },
+                { value: 'long_tube',          label: 'Long Tube / Rod / Pipe' },
+              ]}
+            />
             {['drill_bit_tube', 'drill_bit_set_case', 'corrugated_box', 'long_tube'].includes(productPackageType) && (
               <div className="grid grid-cols-3 gap-2 mt-2">
                 <div>
@@ -1112,17 +1112,22 @@ export default function ProductForm({ categories, brands, action, product, produ
                               </div>
                               <div>
                                 <label className="block text-xs font-medium text-foreground-secondary mb-1">Package Type</label>
-                                <select value={variant.package_type || 'flat_poly_auto'} onChange={(e) => updateVariant(index, 'package_type', e.target.value)} className={inputCls}>
-                                  <option value="flat_poly_auto">Flat Poly (auto)</option>
-                                  <option value="flat_poly_s">Flat Poly S</option>
-                                  <option value="flat_poly_m">Flat Poly M</option>
-                                  <option value="flat_poly_l">Flat Poly L</option>
-                                  <option value="flat_poly_xl">Flat Poly XL</option>
-                                  <option value="drill_bit_tube">Drill Bit Tube</option>
-                                  <option value="drill_bit_set_case">Drill Bit Set Case</option>
-                                  <option value="corrugated_box">Corrugated Box</option>
-                                  <option value="long_tube">Long Tube / Rod</option>
-                                </select>
+                                <AdminSelect
+                                  value={variant.package_type || 'flat_poly_auto'}
+                                  onChange={(val) => updateVariant(index, 'package_type', val)}
+                                  options={[
+                                    { value: 'flat_poly_auto',    label: 'Flat Poly (auto)' },
+                                    { value: 'flat_poly_s',       label: 'Flat Poly S' },
+                                    { value: 'flat_poly_m',       label: 'Flat Poly M' },
+                                    { value: 'flat_poly_l',       label: 'Flat Poly L' },
+                                    { value: 'flat_poly_xl',      label: 'Flat Poly XL' },
+                                    { value: 'drill_bit_tube',    label: 'Drill Bit Tube' },
+                                    { value: 'drill_bit_set_case',label: 'Drill Bit Set Case' },
+                                    { value: 'corrugated_box',    label: 'Corrugated Box' },
+                                    { value: 'long_tube',         label: 'Long Tube / Rod' },
+                                  ]}
+                                  compact
+                                />
                               </div>
                               {['drill_bit_tube', 'drill_bit_set_case', 'corrugated_box', 'long_tube'].includes(variant.package_type || 'flat_poly_auto') && (
                               <div>
@@ -1364,17 +1369,11 @@ export default function ProductForm({ categories, brands, action, product, produ
                                     />
                                   </td>
                                   <td className="py-2 px-2">
-                                    <select value={variant.package_type || 'flat_poly_auto'} onChange={(e) => updateVariant(index, 'package_type', e.target.value)} className="w-32 px-2 py-1.5 border border-border-secondary rounded-lg bg-surface text-foreground focus:ring-2 focus:ring-accent-500 focus:border-transparent text-xs">
-                                      <option value="flat_poly_auto">Auto</option>
-                                      <option value="flat_poly_s">Poly S</option>
-                                      <option value="flat_poly_m">Poly M</option>
-                                      <option value="flat_poly_l">Poly L</option>
-                                      <option value="flat_poly_xl">Poly XL</option>
-                                      <option value="drill_bit_tube">Drill Tube</option>
-                                      <option value="drill_bit_set_case">Drill Set</option>
-                                      <option value="corrugated_box">Box</option>
-                                      <option value="long_tube">Long Tube</option>
-                                    </select>
+                                    <div className="flex items-center border border-border-secondary rounded bg-surface overflow-hidden">
+                                      <button type="button" onClick={() => { const opts = ['flat_poly_auto','flat_poly_s','flat_poly_m','flat_poly_l','flat_poly_xl','drill_bit_tube','drill_bit_set_case','corrugated_box','long_tube']; const i = opts.indexOf(variant.package_type || 'flat_poly_auto'); updateVariant(index, 'package_type', opts[(i - 1 + opts.length) % opts.length]) }} className="px-1 py-0.5 text-foreground-muted hover:text-foreground hover:bg-surface-secondary text-xs leading-none">&lt;</button>
+                                      <span className="px-1 text-xs text-foreground font-medium min-w-[56px] text-center">{({'flat_poly_auto':'Auto','flat_poly_s':'Poly S','flat_poly_m':'Poly M','flat_poly_l':'Poly L','flat_poly_xl':'Poly XL','drill_bit_tube':'Drill Tube','drill_bit_set_case':'Drill Set','corrugated_box':'Box','long_tube':'Long Tube'} as Record<string,string>)[variant.package_type || 'flat_poly_auto'] || 'Auto'}</span>
+                                      <button type="button" onClick={() => { const opts = ['flat_poly_auto','flat_poly_s','flat_poly_m','flat_poly_l','flat_poly_xl','drill_bit_tube','drill_bit_set_case','corrugated_box','long_tube']; const i = opts.indexOf(variant.package_type || 'flat_poly_auto'); updateVariant(index, 'package_type', opts[(i + 1) % opts.length]) }} className="px-1 py-0.5 text-foreground-muted hover:text-foreground hover:bg-surface-secondary text-xs leading-none">&gt;</button>
+                                    </div>
                                   </td>
                                   <td className="py-2 px-2">
                                     {(allGroupVariants.filter(v => !v._isDeleted).length > 1) && (
