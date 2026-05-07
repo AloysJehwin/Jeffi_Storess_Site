@@ -36,6 +36,7 @@ interface VariantRow {
   length_unit: string
   length_rate_on: boolean
   weight_grams: string
+  package_type: string
   length_cm: string
   breadth_cm: string
   height_cm: string
@@ -101,7 +102,7 @@ function emptyVariant(pricing_type: 'unit' | 'weight' | 'length', unit: string):
     pricing_type, unit, numeric_value: '',
     weight_rate: '', weight_unit: 'kg', weight_rate_on: false,
     length_rate: '', length_unit: 'm', length_rate_on: false,
-    weight_grams: '', length_cm: '', breadth_cm: '', height_cm: '',
+    weight_grams: '', package_type: '', length_cm: '', breadth_cm: '', height_cm: '',
   }
 }
 
@@ -129,6 +130,7 @@ export default function ProductForm({ categories, brands, action, product, produ
   const [tempProductId] = useState<string>(productId || `temp-${Date.now()}`)
   const [hasVariants, setHasVariants] = useState(product?.has_variants ?? false)
   const [variantType, setVariantType] = useState(product?.variant_type ?? '')
+  const [productPackageType, setProductPackageType] = useState<string>(product?.package_type || 'flat_poly_auto')
   const [weightRate, setWeightRate] = useState(product?.weight_rate != null ? String(product.weight_rate) : '')
   const [weightUnit, setWeightUnit] = useState(product?.weight_unit || 'kg')
   const [weightEnabled, setWeightEnabled] = useState(product?.weight_rate != null)
@@ -180,6 +182,7 @@ export default function ProductForm({ categories, brands, action, product, produ
         length_unit: v.length_unit || 'm',
         length_rate_on: v.length_rate != null,
         weight_grams: v.weight_grams != null ? String(v.weight_grams) : '',
+        package_type: v.package_type || '',
         length_cm: v.length_cm != null ? String(v.length_cm) : '',
         breadth_cm: v.breadth_cm != null ? String(v.breadth_cm) : '',
         height_cm: v.height_cm != null ? String(v.height_cm) : '',
@@ -822,49 +825,40 @@ export default function ProductForm({ categories, brands, action, product, produ
           {!hasVariants && (
           <div>
             <label className="block text-sm font-medium text-foreground-secondary mb-2">
-              Shipping Dimensions (cm)
+              Package Type
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <input
-                  type="number"
-                  id="length_cm"
-                  name="length_cm"
-                  step="0.1"
-                  min="0"
-                  defaultValue={product?.length_cm ?? ''}
-                  className="w-full px-3 py-2 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent text-sm"
-                  placeholder="L"
-                />
-                <p className="text-xs text-foreground-muted mt-1 text-center">Length</p>
+            <select
+              name="package_type"
+              value={productPackageType}
+              onChange={e => setProductPackageType(e.target.value)}
+              className="w-full px-4 py-2 border border-border-secondary rounded-lg bg-surface text-foreground focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+            >
+              <option value="flat_poly_auto">Flat Poly (auto by weight)</option>
+              <option value="flat_poly_s">Flat Poly S (≤100g)</option>
+              <option value="flat_poly_m">Flat Poly M (≤500g)</option>
+              <option value="flat_poly_l">Flat Poly L (≤1500g)</option>
+              <option value="flat_poly_xl">Flat Poly XL (&gt;1500g)</option>
+              <option value="drill_bit_tube">Drill Bit Tube</option>
+              <option value="drill_bit_set_case">Drill Bit Set Case</option>
+              <option value="corrugated_box">Corrugated Box</option>
+              <option value="long_tube">Long Tube / Rod / Pipe</option>
+            </select>
+            {['drill_bit_tube', 'drill_bit_set_case', 'corrugated_box', 'long_tube'].includes(productPackageType) && (
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                <div>
+                  <input type="number" id="length_cm" name="length_cm" step="0.1" min="0" defaultValue={product?.length_cm ?? ''} className="w-full px-3 py-2 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent text-sm" placeholder="L" />
+                  <p className="text-xs text-foreground-muted mt-1 text-center">Length</p>
+                </div>
+                <div>
+                  <input type="number" id="breadth_cm" name="breadth_cm" step="0.1" min="0" defaultValue={product?.breadth_cm ?? ''} className="w-full px-3 py-2 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent text-sm" placeholder="B" />
+                  <p className="text-xs text-foreground-muted mt-1 text-center">Breadth</p>
+                </div>
+                <div>
+                  <input type="number" id="height_cm" name="height_cm" step="0.1" min="0" defaultValue={product?.height_cm ?? ''} className="w-full px-3 py-2 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent text-sm" placeholder="H" />
+                  <p className="text-xs text-foreground-muted mt-1 text-center">Height</p>
+                </div>
               </div>
-              <div>
-                <input
-                  type="number"
-                  id="breadth_cm"
-                  name="breadth_cm"
-                  step="0.1"
-                  min="0"
-                  defaultValue={product?.breadth_cm ?? ''}
-                  className="w-full px-3 py-2 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent text-sm"
-                  placeholder="B"
-                />
-                <p className="text-xs text-foreground-muted mt-1 text-center">Breadth</p>
-              </div>
-              <div>
-                <input
-                  type="number"
-                  id="height_cm"
-                  name="height_cm"
-                  step="0.1"
-                  min="0"
-                  defaultValue={product?.height_cm ?? ''}
-                  className="w-full px-3 py-2 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent text-sm"
-                  placeholder="H"
-                />
-                <p className="text-xs text-foreground-muted mt-1 text-center">Height</p>
-              </div>
-            </div>
+            )}
           </div>
           )}
 
@@ -1117,6 +1111,21 @@ export default function ProductForm({ categories, brands, action, product, produ
                                 <input type="number" step="1" min="0" value={variant.weight_grams} onChange={(e) => updateVariant(index, 'weight_grams', e.target.value)} className={inputCls} placeholder="e.g. 500" />
                               </div>
                               <div>
+                                <label className="block text-xs font-medium text-foreground-secondary mb-1">Package Type</label>
+                                <select value={variant.package_type || 'flat_poly_auto'} onChange={(e) => updateVariant(index, 'package_type', e.target.value)} className={inputCls}>
+                                  <option value="flat_poly_auto">Flat Poly (auto)</option>
+                                  <option value="flat_poly_s">Flat Poly S</option>
+                                  <option value="flat_poly_m">Flat Poly M</option>
+                                  <option value="flat_poly_l">Flat Poly L</option>
+                                  <option value="flat_poly_xl">Flat Poly XL</option>
+                                  <option value="drill_bit_tube">Drill Bit Tube</option>
+                                  <option value="drill_bit_set_case">Drill Bit Set Case</option>
+                                  <option value="corrugated_box">Corrugated Box</option>
+                                  <option value="long_tube">Long Tube / Rod</option>
+                                </select>
+                              </div>
+                              {['drill_bit_tube', 'drill_bit_set_case', 'corrugated_box', 'long_tube'].includes(variant.package_type || 'flat_poly_auto') && (
+                              <div>
                                 <label className="block text-xs font-medium text-foreground-secondary mb-1">Dimensions (L × B × H cm)</label>
                                 <div className="grid grid-cols-3 gap-1">
                                   <input type="number" step="0.1" min="0" value={variant.length_cm} onChange={(e) => updateVariant(index, 'length_cm', e.target.value)} className={inputCls} placeholder="L" />
@@ -1124,6 +1133,7 @@ export default function ProductForm({ categories, brands, action, product, produ
                                   <input type="number" step="0.1" min="0" value={variant.height_cm} onChange={(e) => updateVariant(index, 'height_cm', e.target.value)} className={inputCls} placeholder="H" />
                                 </div>
                               </div>
+                              )}
                               <div className="pt-2 border-t border-border-default space-y-2">
                                 <div className="flex items-center gap-2">
                                   <button
@@ -1197,9 +1207,7 @@ export default function ProductForm({ categories, brands, action, product, produ
                               <th className="py-2 px-2 text-left font-medium text-foreground-secondary whitespace-nowrap text-xs">Wt. Rate</th>
                               <th className="py-2 px-2 text-left font-medium text-foreground-secondary whitespace-nowrap text-xs">Len. Rate</th>
                               <th className="py-2 px-2 text-left font-medium text-foreground-secondary whitespace-nowrap text-xs">Ship Wt.(g)</th>
-                              <th className="py-2 px-2 text-left font-medium text-foreground-secondary whitespace-nowrap text-xs">L(cm)</th>
-                              <th className="py-2 px-2 text-left font-medium text-foreground-secondary whitespace-nowrap text-xs">B(cm)</th>
-                              <th className="py-2 px-2 text-left font-medium text-foreground-secondary whitespace-nowrap text-xs">H(cm)</th>
+                              <th className="py-2 px-2 text-left font-medium text-foreground-secondary whitespace-nowrap text-xs">Pkg Type</th>
                               <th className="py-2 px-2 w-8"></th>
                             </tr>
                           </thead>
@@ -1356,13 +1364,17 @@ export default function ProductForm({ categories, brands, action, product, produ
                                     />
                                   </td>
                                   <td className="py-2 px-2">
-                                    <input type="number" step="0.1" min="0" value={variant.length_cm} onChange={(e) => updateVariant(index, 'length_cm', e.target.value)} className="w-16 px-2 py-1.5 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent text-sm" placeholder="L" />
-                                  </td>
-                                  <td className="py-2 px-2">
-                                    <input type="number" step="0.1" min="0" value={variant.breadth_cm} onChange={(e) => updateVariant(index, 'breadth_cm', e.target.value)} className="w-16 px-2 py-1.5 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent text-sm" placeholder="B" />
-                                  </td>
-                                  <td className="py-2 px-2">
-                                    <input type="number" step="0.1" min="0" value={variant.height_cm} onChange={(e) => updateVariant(index, 'height_cm', e.target.value)} className="w-16 px-2 py-1.5 border border-border-secondary rounded-lg bg-surface text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-500 focus:border-transparent text-sm" placeholder="H" />
+                                    <select value={variant.package_type || 'flat_poly_auto'} onChange={(e) => updateVariant(index, 'package_type', e.target.value)} className="w-32 px-2 py-1.5 border border-border-secondary rounded-lg bg-surface text-foreground focus:ring-2 focus:ring-accent-500 focus:border-transparent text-xs">
+                                      <option value="flat_poly_auto">Auto</option>
+                                      <option value="flat_poly_s">Poly S</option>
+                                      <option value="flat_poly_m">Poly M</option>
+                                      <option value="flat_poly_l">Poly L</option>
+                                      <option value="flat_poly_xl">Poly XL</option>
+                                      <option value="drill_bit_tube">Drill Tube</option>
+                                      <option value="drill_bit_set_case">Drill Set</option>
+                                      <option value="corrugated_box">Box</option>
+                                      <option value="long_tube">Long Tube</option>
+                                    </select>
                                   </td>
                                   <td className="py-2 px-2">
                                     {(allGroupVariants.filter(v => !v._isDeleted).length > 1) && (
