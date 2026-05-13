@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { LABEL_SIZES, LabelSpec, LabelSize } from '@/lib/label-pdf'
+import { LABEL_SIZES, LabelSpec, LabelSize } from '@/lib/label-sizes'
 
 interface LabelEntry {
   id: string
