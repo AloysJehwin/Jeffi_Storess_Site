@@ -7,6 +7,7 @@ import ProductImage from '@/components/admin/ProductImage'
 import DownloadAdButton from '@/components/admin/DownloadAdButton'
 import DeactivateProductButton from '@/components/admin/DeactivateProductButton'
 import ProductDetailModal from '@/components/admin/ProductDetailModal'
+import ProductLabelModal from '@/components/admin/ProductLabelModal'
 
 interface Props {
   products: any[]
@@ -15,6 +16,7 @@ interface Props {
 
 export default function ProductsTableClient({ products, featuredCount }: Props) {
   const [selected, setSelected] = useState<any>(null)
+  const [labelProduct, setLabelProduct] = useState<{ id: string; name: string; has_variants: boolean } | null>(null)
 
   return (
     <>
@@ -80,6 +82,12 @@ export default function ProductsTableClient({ products, featuredCount }: Props) 
                 <div className="flex items-center justify-end gap-2">
                   <FeaturedToggleButton productId={product.id} isFeatured={product.is_featured} featuredCount={featuredCount} />
                   <Link href={`/admin/products/edit/${product.id}`} className="text-accent-500 hover:text-accent-600">Edit</Link>
+                  <button
+                    onClick={() => setLabelProduct({ id: product.id, name: product.name, has_variants: product.has_variants })}
+                    className="text-orange-500 hover:text-orange-600 text-sm font-medium"
+                  >
+                    Label
+                  </button>
                   <DownloadAdButton productId={product.id} productName={product.name} />
                   <DeactivateProductButton productId={product.id} productName={product.name} isActive={product.is_active} />
                 </div>
@@ -96,6 +104,7 @@ export default function ProductsTableClient({ products, featuredCount }: Props) 
       </tbody>
 
       <ProductDetailModal product={selected} onClose={() => setSelected(null)} />
+      <ProductLabelModal product={labelProduct} onClose={() => setLabelProduct(null)} />
     </>
   )
 }
