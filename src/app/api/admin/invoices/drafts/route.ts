@@ -1,11 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateAdmin } from '@/lib/jwt'
-import { withTransaction, queryMany } from '@/lib/db'
-import { generateOrderInvoice } from '@/lib/invoice'
-import { isInterState, calculateGST, getFinancialYear, generateInvoiceNumber, getNextInvoiceSequence } from '@/lib/gst'
-import { logStockMovement } from '@/lib/inventory'
+import { queryMany, withTransaction } from '@/lib/db'
+import { isInterState, calculateGST } from '@/lib/gst'
 
 export const dynamic = 'force-dynamic'
+
+export async function GET(request: NextRequest) {
+  try {
+    const admin = await authenticateAdmin(request)
+    if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const rows = await queryMany(
+      `SELECT o.id, o.order_number, o.customer_name, o.customer_phone, o.total_amount, o.created_at, o.updated_at
+       FROM orders o
+       WHERE o.status = 'draft' AND o.source = 'offline'
+       ORDER BY o.updated_at DESC
+       LIMIT 100`
+    )
+
+    return NextResponse.json({ drafts: rows || [] })
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || 'Internal server error' }, { status: 500 })
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,22 +31,13 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const {
-      customerName,
-      customerPhone,
-      customerEmail,
-      addressLine1,
-      addressLine2,
-      city,
-      state,
-      postalCode,
-      buyerGstin,
-      paymentMode,
-      items,
-      notes,
+      customerName, customerPhone, customerEmail,
+      addressLine1, addressLine2, city, state, postalCode,
+      buyerGstin, paymentMode, notes, items,
     } = body
 
-    if (!customerName || !items?.length) {
-      return NextResponse.json({ error: 'customerName and items are required' }, { status: 400 })
+    if (!customerName) {
+      return NextResponse.json({ error: 'customerName is required' }, { status: 400 })
     }
 
     const sellerStateCode = process.env.BUSINESS_STATE_CODE || '33'
@@ -41,9 +49,9 @@ export async function POST(request: NextRequest) {
     let totalSgst = 0
     let totalIgst = 0
 
-    const processedItems = items.map((item: any) => {
-      const unitPrice = parseFloat(item.unit_price)
-      const qty = parseFloat(item.quantity)
+    const processedItems = (items || []).map((item: any) => {
+      const unitPrice = parseFloat(item.unit_price) || 0
+      const qty = parseFloat(item.quantity) || 0
       const lineTotal = unitPrice * qty
       const gstRate = parseFloat(item.gst_rate || '18')
       const gst = calculateGST(lineTotal, gstRate, orderIsIgst)
@@ -56,7 +64,7 @@ export async function POST(request: NextRequest) {
 
       return {
         product_id: item.product_id || null,
-        product_name: item.product_name,
+        product_name: item.product_name || '',
         product_sku: item.product_sku || '',
         variant_id: item.variant_id || null,
         variant_name: item.variant_name || null,
@@ -74,7 +82,7 @@ export async function POST(request: NextRequest) {
     })
 
     const taxAmount = Math.round((totalCgst + totalSgst + totalIgst) * 100) / 100
-    const totalAmount = Math.round((subtotal) * 100) / 100
+    const totalAmount = Math.round(subtotal * 100) / 100
 
     const result = await withTransaction(async (client) => {
       const addrResult = await client.query(
@@ -87,7 +95,7 @@ export async function POST(request: NextRequest) {
 
       const ts = Date.now()
       const rand = Math.random().toString(36).substring(2, 8).toUpperCase()
-      const orderNumber = `OFF-${ts}-${rand}`
+      const orderNumber = `DFT-${ts}-${rand}`
 
       const orderResult = await client.query(
         `INSERT INTO orders (
@@ -95,15 +103,13 @@ export async function POST(request: NextRequest) {
           subtotal, tax_amount, total_amount, discount_amount, shipping_amount,
           taxable_amount, cgst_amount, sgst_amount, igst_amount, is_igst,
           buyer_gstin, payment_status, status, source,
-          shipping_address_id, billing_address_id,
-          notes
+          shipping_address_id, billing_address_id, notes
         ) VALUES (
           $1, $2, $3, $4,
           $5, $6, $7, 0, 0,
           $8, $9, $10, $11, $12,
-          $13, $14, 'delivered', 'offline',
-          $15, $15,
-          $16
+          $13, $14, 'draft', 'offline',
+          $15, $15, $16
         ) RETURNING id, order_number`,
         [
           orderNumber, customerName, customerPhone || '', customerEmail || '',
@@ -120,7 +126,6 @@ export async function POST(request: NextRequest) {
         ]
       )
       const orderId = orderResult.rows[0].id
-      const finalOrderNumber = orderResult.rows[0].order_number
 
       for (const item of processedItems) {
         await client.query(
@@ -139,79 +144,10 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      for (const item of processedItems) {
-        if (!item.product_id) continue
-        const qty = item.quantity
-
-        if (item.variant_id) {
-          const inv = await client.query<{ inventory_quantity: number }>(
-            'SELECT inventory_quantity FROM product_variants WHERE id = $1 FOR UPDATE',
-            [item.variant_id]
-          )
-          const stock = parseFloat(inv.rows[0]?.inventory_quantity as any) || 0
-          if (stock < qty) {
-            throw new Error(`Insufficient stock for "${item.product_name}${item.variant_name ? ' / ' + item.variant_name : ''}" — available: ${stock}, required: ${qty}`)
-          }
-          await client.query(
-            'UPDATE product_variants SET inventory_quantity = inventory_quantity - $1 WHERE id = $2',
-            [qty, item.variant_id]
-          )
-        } else {
-          const inv = await client.query<{ inventory_quantity: number }>(
-            'SELECT inventory_quantity FROM products WHERE id = $1 FOR UPDATE',
-            [item.product_id]
-          )
-          const stock = parseFloat(inv.rows[0]?.inventory_quantity as any) || 0
-          if (stock < qty) {
-            throw new Error(`Insufficient stock for "${item.product_name}" — available: ${stock}, required: ${qty}`)
-          }
-          await client.query(
-            'UPDATE products SET inventory_quantity = inventory_quantity - $1 WHERE id = $2',
-            [qty, item.product_id]
-          )
-        }
-
-        await logStockMovement(client, {
-          productId: item.product_id,
-          variantId: item.variant_id || null,
-          transactionType: 'sale',
-          quantityChange: -qty,
-          referenceType: 'order',
-          referenceId: orderId,
-        })
-      }
-
-      const isGSTEnabled = process.env.ENABLE_GST === 'true'
-      let invoiceNumber: string | null = null
-
-      if (isGSTEnabled) {
-        const settingsResult = await client.query("SELECT value FROM site_settings WHERE key = 'invoice_prefix'")
-        const prefix = settingsResult.rows[0]?.value || 'JS'
-        const fy = getFinancialYear(new Date())
-        const seq = await getNextInvoiceSequence(client, fy)
-        invoiceNumber = generateInvoiceNumber(prefix, fy, seq)
-        const invoiceDate = new Date().toISOString()
-
-        await client.query(
-          `UPDATE orders SET invoice_number = $1, invoice_date = $2 WHERE id = $3`,
-          [invoiceNumber, invoiceDate, orderId]
-        )
-        await client.query(
-          'INSERT INTO invoices (order_id, invoice_number, financial_year, sequence_number) VALUES ($1, $2, $3, $4)',
-          [orderId, invoiceNumber, fy, seq]
-        )
-      }
-
-      return { orderId, orderNumber: finalOrderNumber, invoiceNumber }
+      return { orderId, orderNumber: orderResult.rows[0].order_number }
     })
 
-    return NextResponse.json({
-      success: true,
-      orderId: result.orderId,
-      orderNumber: result.orderNumber,
-      invoiceNumber: result.invoiceNumber,
-      invoiceUrl: result.invoiceNumber ? `/api/orders/${result.orderId}/invoice` : null,
-    })
+    return NextResponse.json({ success: true, draftId: result.orderId, orderNumber: result.orderNumber })
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || 'Internal server error' }, { status: 500 })
   }
